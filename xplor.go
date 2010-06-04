@@ -182,7 +182,7 @@ func onLook(charaddr string) {
 		var args2 []string = make([]string, 2)
 		args2[0] = path.Join(PLAN9 + "/bin/B")
 		args2[1] = fullpath
-		fds := []*os.File{os.Stdout, os.Stdout, os.Stderr}
+		fds := []*os.File{os.Stdin, os.Stdout, os.Stderr}
 		os.ForkExec(args2[0], args2, os.Environ(), "", fds)
 		return
 	}
