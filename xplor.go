@@ -1,4 +1,4 @@
-// 2010 - Mathieu Lonjaret. BSD-style licence.
+// 2010 - Mathieu Lonjaret
 
 package main
 
@@ -13,89 +13,115 @@ import (
 	"goplan9.googlecode.com/hg/plan9/acme"
 )
 
-	var root string
-	var w *acme.Win
-	var INDENT string = "	"
-	var PLAN9 = os.Getenv("PLAN9")
-	
+var root string
+var w *acme.Win
+var INDENT string = "	"
+var PLAN9 = os.Getenv("PLAN9")
+
+const NBUF = 512
+
 func usage() {
-    fmt.Fprintf(os.Stderr, "usage: xplor [path] \n")
-    flag.PrintDefaults()
-    os.Exit(2)
+	fmt.Fprintf(os.Stderr, "usage: xplor [path] \n")
+	flag.PrintDefaults()
+	os.Exit(2)
 }
 
 //TODO: send error messages to +Errors instead of Stderr?
- 
+
 func main() {
 	flag.Usage = usage
-    flag.Parse()
-    
+	flag.Parse()
+
 	args := flag.Args()
 
 	switch len(args) {
-    case 0:
-        root, _ = os.Getwd()
-    case 1:
- 		root = args[0]
-    default:
-        usage()
-    }
-    	
-	initWindow()
-	
-	w.Write("+Errors", []byte("Hello world"))
-	
-	for word := range events() {
-		go onLook(word) 
+	case 0:
+		root, _ = os.Getwd()
+	case 1:
+		root = args[0]
+	default:
+		usage()
 	}
-}
 
-func initWindow() {
-	var err os.Error
-	w, err = acme.New()
+	err := initWindow()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, err.String())
 		return 
+	}
+
+	for word := range events() {
+		if word == "DotDot" {
+			doDotDot()
+			continue
+		}
+		onLook(word)
+	}
+}
+
+func initWindow() os.Error {
+	var err os.Error = nil
+	w, err = acme.New()
+	if err != nil {
+		return err
 	}
 
 	title := "xplor-" + root
 	w.Name(title)
-
-	printDirContents(root, 0)
+	tag := "DotDot"
+	w.Write("tag", []byte(tag))
+	return printDirContents(root, 0)
 }
 
-func printDirContents(path string, depth int) {
-	currentDir, err := os.Open(path, os.O_RDONLY, 0644)
+func doDotDot() {
+	// blank the window
+	err := w.Addr("0,$")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, err.String())
-		return 
+		os.Exit(1)
+	}
+	w.Write("data", []byte(""))
+	
+	// restart from ..
+	root = path.Clean(root + "/../")
+	title := "xplor-" + root
+	w.Name(title)
+	err = printDirContents(root, 0)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, err.String())
+		os.Exit(1)
+	}
+}
+
+func printDirContents(path string, depth int) os.Error {
+	currentDir, err := os.Open(path, os.O_RDONLY, 0644)
+	if err != nil {
+		return err
 	}
 	names, err := currentDir.Readdirnames(-1)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, err.String())
-		return 
+		return err
 	}
-	currentDir.Close();
-	
-	sort.SortStrings(names)
+	currentDir.Close()
 
+	sort.SortStrings(names)
 	indents := ""
 	for i := 0; i < depth; i++ {
 		indents = indents + INDENT
 	}
-	for _, v := range names {	
-		w.Write("data", []byte(indents + v + "\n"))
+	for _, v := range names {
+		w.Write("data", []byte(indents+v+"\n"))
 	}
-	
+
 	//lame trick for now to dodge the out of range issue, until my address-foo gets better
 	if depth == 0 {
 		w.Write("body", []byte("\n"))
 		w.Write("body", []byte("\n"))
+		w.Write("body", []byte("\n"))
 	}
+	return err
 }
 
 func readLine(addr string) ([]byte, os.Error) {
-	const NBUF = 512	
 	var b []byte = make([]byte, NBUF)
 	var err os.Error = nil
 	err = w.Addr("%s", addr)
@@ -103,8 +129,8 @@ func readLine(addr string) ([]byte, os.Error) {
 		return b, err
 	}
 	n, err := w.Read("xdata", b)
-	
-	return b[0:n-1], err
+
+	return b[0 : n-1], err
 }
 
 func getDepth(line []byte) (depth int, trimedline string) {
@@ -126,9 +152,9 @@ func isFolded(charaddr string) (bool, os.Error) {
 	b, err = readLine(addr)
 	if err != nil {
 		return true, err
-	}	
+	}
 	nextdepth, _ := getDepth(b)
-	return (nextdepth <= depth), err 
+	return (nextdepth <= depth), err
 }
 
 func getParents(charaddr string, depth int, prevline int) string {
@@ -139,25 +165,26 @@ func getParents(charaddr string, depth int, prevline int) string {
 	if prevline == 1 {
 		addr = "#" + charaddr + "-+"
 	} else {
-		addr = "#" + charaddr + "-" + fmt.Sprint(prevline - 1)
+		addr = "#" + charaddr + "-" + fmt.Sprint(prevline-1)
 	}
 	for {
 		b, err := readLine(addr)
 		if err != nil {
-			w.Write("body", []byte(err.String()))
-			return ""
+			fmt.Fprintf(os.Stderr, err.String())
+			os.Exit(1)
 		}
 		newdepth, line := getDepth(b)
 		if newdepth < depth {
-			fullpath := path.Join(getParents(charaddr, newdepth, prevline), "/", line)
+			fullpath := path.Join(getParents(charaddr, newdepth, prevline), line)
 			return fullpath
 		}
 		prevline++
-		addr = "#" + charaddr + "-" + fmt.Sprint(prevline - 1)
+		addr = "#" + charaddr + "-" + fmt.Sprint(prevline-1)
 	}
 	return ""
 }
 
+//TODO: maybe break this one in a fold and unfold functions
 func onLook(charaddr string) {
 	// reconstruct full path and check if file or dir
 	addr := "#" + charaddr + "+1-"
@@ -167,41 +194,41 @@ func onLook(charaddr string) {
 		return
 	}
 	depth, line := getDepth(b)
-	fullpath := path.Join(root, "/", getParents(charaddr, depth, 1), "/", line)
+	fullpath := path.Join(root, getParents(charaddr, depth, 1), line)
 	fi, err := os.Lstat(fullpath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, err.String())
 		return
 	}
-	
+
 	if !fi.IsDirectory() {
-		// send that file to B (ie open it)
+		// not a dir -> send that file to the plumber
 		if len(PLAN9) == 0 {
 			fmt.Fprintf(os.Stderr, "$PLAN9 not defined \n")
 			return
 		}
 		var args2 []string = make([]string, 2)
-		args2[0] = path.Join(PLAN9 + "/bin/B")
+		args2[0] = path.Join(PLAN9 + "/bin/plumb")
 		args2[1] = fullpath
-	    fds := []*os.File{os.Stdout, os.Stdout, os.Stderr}
+		fds := []*os.File{os.Stdin, os.Stdout, os.Stderr}
 		os.ForkExec(args2[0], args2, os.Environ(), "", fds)
 		return
 	}
-	
+
 	folded, err := isFolded(charaddr)
 	if err != nil {
 		fmt.Fprint(os.Stderr, err.String())
-		return	
+		return
 	}
 	if folded {
 		// print dir contents
 		addr = "#" + charaddr + "+2-1-#0"
 		err = w.Addr("%s", addr)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, err.String() + addr)
+			fmt.Fprintf(os.Stderr, err.String()+addr)
 			return
-		}	
-		printDirContents(fullpath, depth + 1)
+		}
+		printDirContents(fullpath, depth+1)
 	} else {
 		// unfold, ie delete lines below dir until we hit a dir of the same depth
 		addr = "#" + charaddr + "+-"
@@ -219,16 +246,16 @@ func onLook(charaddr string) {
 				return
 			}
 			nextdepth, _ = getDepth(b)
-			nextline++;
+			nextline++
 			addr = "#" + charaddr + "+" + fmt.Sprint(nextline-1)
 		}
 		nextline--
 		addr = "#" + charaddr + "+-#0,#" + charaddr + "+" + fmt.Sprint(nextline-2)
 		err = w.Addr("%s", addr)
-			if err != nil {
-				fmt.Fprint(os.Stderr, err.String())
-				return
-			}
+		if err != nil {
+			fmt.Fprint(os.Stderr, err.String())
+			return
+		}
 		w.Write("data", []byte(""))
 	}
 }
@@ -238,14 +265,19 @@ func events() <-chan string {
 	go func() {
 		for e := range w.EventChan() {
 			switch e.C2 {
-			case 'x', 'X':	// execute
-				if string(e.Text) == "Del" {
+			case 'x', 'X': // execute
+				switch string(e.Text) {
+				case "Del": 
 					w.Ctl("delete")
+				case "DotDot":
+					msg := "DotDot"
+					c <- msg
+				default:
+					w.WriteEvent(e)
 				}
-				w.WriteEvent(e)
 			case 'l': // in the tag, let the plumber deal with it
 				w.WriteEvent(e)
-			case 'L':	// look
+			case 'L': // look
 				w.Ctl("clean")
 				//ignore expansions
 				if e.OrigQ0 != e.OrigQ1 {
