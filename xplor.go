@@ -54,6 +54,10 @@ func main() {
 			doDotDot()
 			continue
 		}
+		if word[0] == 'X' {
+			onExec(word[1:len(word)])
+			continue
+		}
 		onLook(word)
 	}
 }
@@ -70,26 +74,6 @@ func initWindow() os.Error {
 	tag := "DotDot"
 	w.Write("tag", []byte(tag))
 	return printDirContents(root, 0)
-}
-
-func doDotDot() {
-	// blank the window
-	err := w.Addr("0,$")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, err.String())
-		os.Exit(1)
-	}
-	w.Write("data", []byte(""))
-	
-	// restart from ..
-	root = path.Clean(root + "/../")
-	title := "xplor-" + root
-	w.Name(title)
-	err = printDirContents(root, 0)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, err.String())
-		os.Exit(1)
-	}
 }
 
 func printDirContents(path string, depth int) os.Error {
@@ -260,12 +244,51 @@ func onLook(charaddr string) {
 	}
 }
 
+func doDotDot() {
+	// blank the window
+	err := w.Addr("0,$")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, err.String())
+		os.Exit(1)
+	}
+	w.Write("data", []byte(""))
+	
+	// restart from ..
+	root = path.Clean(root + "/../")
+	title := "xplor-" + root
+	w.Name(title)
+	err = printDirContents(root, 0)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, err.String())
+		os.Exit(1)
+	}
+}
+
+// on a B2 click event we print the fullpath of the file to Stdout.
+// This can come in handy for paths with spaces in it, because the
+// plumber will fail to open them.  Printing it to Stdout allows us to do
+// whatever we want with it when that happens.
+// Also usefull with a dir path: once printed to stdout, a B3 click on
+// the path to open it the "classic" acme way.
+func onExec(charaddr string) {
+	// reconstruct full path and print it to Stdout
+	addr := "#" + charaddr + "+1-"
+	b, err := readLine(addr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, err.String())
+		return
+	}
+	depth, line := getDepth(b)
+	fullpath := path.Join(root, getParents(charaddr, depth, 1), line)
+	fmt.Fprintf(os.Stdout, fullpath)
+}
+
 func events() <-chan string {
 	c := make(chan string, 10)
 	go func() {
 		for e := range w.EventChan() {
 			switch e.C2 {
-			case 'x', 'X': // execute
+			case 'x': // execute
 				switch string(e.Text) {
 				case "Del": 
 					w.Ctl("delete")
@@ -275,6 +298,9 @@ func events() <-chan string {
 				default:
 					w.WriteEvent(e)
 				}
+			case 'X':
+				msg := "X" + fmt.Sprint(e.OrigQ0)
+				c <- msg
 			case 'l': // in the tag, let the plumber deal with it
 				w.WriteEvent(e)
 			case 'L': // look
