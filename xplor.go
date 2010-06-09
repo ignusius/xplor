@@ -280,7 +280,7 @@ func onExec(charaddr string) {
 	}
 	depth, line := getDepth(b)
 	fullpath := path.Join(root, getParents(charaddr, depth, 1), line)
-	fmt.Fprintf(os.Stdout, fullpath)
+	fmt.Fprintf(os.Stdout, fullpath + "\n")
 }
 
 func events() <-chan string {
