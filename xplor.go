@@ -10,7 +10,9 @@ import (
 	"sort"
 	"flag"
 
+	"goplan9.googlecode.com/hg/plan9"
 	"goplan9.googlecode.com/hg/plan9/acme"
+	"bitbucket.org/fhs/goplumb/plumb"
 )
 
 var root string
@@ -187,15 +189,20 @@ func onLook(charaddr string) {
 
 	if !fi.IsDirectory() {
 		// not a dir -> send that file to the plumber
-		if len(PLAN9) == 0 {
-			fmt.Fprintf(os.Stderr, "$PLAN9 not defined \n")
+		port, err := plumb.Open("send", plan9.OWRITE)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, err.String())
 			return
 		}
-		var args2 []string = make([]string, 2)
-		args2[0] = path.Join(PLAN9 + "/bin/plumb")
-		args2[1] = fullpath
-		fds := []*os.File{os.Stdin, os.Stdout, os.Stderr}
-		os.ForkExec(args2[0], args2, os.Environ(), "", fds)
+		defer port.Close()
+		port.Send(&plumb.Msg{
+			Src:  "xplor",
+			Dst:  "",
+			WDir: "/",
+			Kind: "text",
+			Attr: map[string]string{},
+			Data: []byte(fullpath),
+		})
 		return
 	}
 
