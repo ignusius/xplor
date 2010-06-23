@@ -46,7 +46,7 @@ func main() {
 	err := initWindow()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, err.String())
-		return 
+		return
 	}
 
 	for word := range events() {
@@ -252,7 +252,7 @@ func doDotDot() {
 		os.Exit(1)
 	}
 	w.Write("data", []byte(""))
-	
+
 	// restart from ..
 	root = path.Clean(root + "/../")
 	title := "xplor-" + root
@@ -280,7 +280,7 @@ func onExec(charaddr string) {
 	}
 	depth, line := getDepth(b)
 	fullpath := path.Join(root, getParents(charaddr, depth, 1), line)
-	fmt.Fprintf(os.Stdout, fullpath + "\n")
+	fmt.Fprintf(os.Stdout, fullpath+"\n")
 }
 
 func events() <-chan string {
@@ -288,29 +288,27 @@ func events() <-chan string {
 	go func() {
 		for e := range w.EventChan() {
 			switch e.C2 {
-			case 'x': // execute
+			case 'x': // execute in body
 				switch string(e.Text) {
-				case "Del": 
+				case "Del":
 					w.Ctl("delete")
 				case "DotDot":
-					msg := "DotDot"
-					c <- msg
+					c <- "DotDot"
 				default:
 					w.WriteEvent(e)
 				}
-			case 'X':
-				msg := "X" + fmt.Sprint(e.OrigQ0)
-				c <- msg
-			case 'l': // in the tag, let the plumber deal with it
+			case 'X': // execute in tag
+				c <- ("X" + fmt.Sprint(e.OrigQ0))
+			case 'l': // button 3 in tag
+				// let the plumber deal with it
 				w.WriteEvent(e)
-			case 'L': // look
+			case 'L': // button 3 in body
 				w.Ctl("clean")
 				//ignore expansions
 				if e.OrigQ0 != e.OrigQ1 {
 					continue
 				}
-				msg := fmt.Sprint(e.OrigQ0)
-				c <- msg
+				c <- fmt.Sprint(e.OrigQ0)
 			}
 		}
 		w.CloseFiles()
