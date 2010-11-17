@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sort"
 	"flag"
+	//	"bytes"
 
 	"goplan9.googlecode.com/hg/plan9"
 	"goplan9.googlecode.com/hg/plan9/acme"
@@ -21,6 +22,7 @@ var INDENT string = "	"
 var PLAN9 = os.Getenv("PLAN9")
 
 const NBUF = 512
+const dirflag = "+ "
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "usage: xplor [path] \n")
@@ -78,8 +80,8 @@ func initWindow() os.Error {
 	return printDirContents(root, 0)
 }
 
-func printDirContents(path string, depth int) os.Error {
-	currentDir, err := os.Open(path, os.O_RDONLY, 0644)
+func printDirContents(dirpath string, depth int) os.Error {
+	currentDir, err := os.Open(dirpath, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
 	}
@@ -95,7 +97,19 @@ func printDirContents(path string, depth int) os.Error {
 		indents = indents + INDENT
 	}
 	for _, v := range names {
-		w.Write("data", []byte(indents+v+"\n"))
+		// we want to be fast so we assume (for the printing) that any name containing a dot is not a dir
+		if !strings.Contains(v, ".") {
+			fullpath := path.Join(dirpath, v)
+			fi, err := os.Lstat(fullpath)
+			if err != nil {
+				return err
+			}
+			if fi.IsDirectory() {
+				w.Write("data", []byte(dirflag+indents+v+"\n"))
+			}
+		} else {
+			w.Write("data", []byte("  "+indents+v+"\n"))
+		}
 	}
 
 	//lame trick for now to dodge the out of range issue, until my address-foo gets better
@@ -116,7 +130,11 @@ func readLine(addr string) ([]byte, os.Error) {
 	}
 	n, err := w.Read("xdata", b)
 
-	return b[0 : n-1], err
+	// remove dirflag, if any
+	if n < 2 {
+		return b[0 : n-1], err
+	}
+	return b[2 : n-1], err
 }
 
 func getDepth(line []byte) (depth int, trimedline string) {
