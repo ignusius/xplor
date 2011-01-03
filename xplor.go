@@ -31,6 +31,8 @@ func usage() {
 }
 
 //TODO: send error messages to +Errors instead of Stderr?
+//TODO: keep a list of unfolded  dirs
+// because it will be faster to go through that list and find the right parent for a file when constructing the fullpath, than going recursively up
 
 func main() {
 	flag.Usage = usage
@@ -42,7 +44,13 @@ func main() {
 	case 0:
 		root, _ = os.Getwd()
 	case 1:
-		root = args[0]
+		temp := path.Clean(args[0])
+		if temp[0] != '/' {
+			cwd, _ := os.Getwd()
+			root = path.Join(cwd, temp)
+		} else {
+			root = temp
+		}
 	default:
 		usage()
 	}
@@ -305,7 +313,7 @@ func onExec(charaddr string) {
 	}
 	depth, line := getDepth(b)
 	fullpath := path.Join(root, getParents(charaddr, depth, 1), line)
-	fmt.Fprintf(os.Stdout, fullpath+"\n")
+	fmt.Fprintf(os.Stderr, fullpath+"\n")
 }
 
 func events() <-chan string {
@@ -313,7 +321,7 @@ func events() <-chan string {
 	go func() {
 		for e := range w.EventChan() {
 			switch e.C2 {
-			case 'x': // execute in body
+			case 'x': // execute in tag
 				switch string(e.Text) {
 				case "Del":
 					w.Ctl("delete")
@@ -322,7 +330,7 @@ func events() <-chan string {
 				default:
 					w.WriteEvent(e)
 				}
-			case 'X': // execute in tag
+			case 'X': // execute in body
 				c <- ("X" + fmt.Sprint(e.OrigQ0))
 			case 'l': // button 3 in tag
 				// let the plumber deal with it
