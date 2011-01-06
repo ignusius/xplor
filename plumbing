@@ -1,0 +1,9 @@
+# Add this rule to your plumbing rules, for example on top, 
+# right after the declarations of ports without rules. ymmv.
+#
+# start rc in a win at the specified path from xplor
+type is text
+src is xplor
+dst is win
+plumb start win rc -c '@{cd '$data'; exec rc -l}'
+
