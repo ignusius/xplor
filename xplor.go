@@ -448,7 +448,6 @@ func doDotDot() {
 // dst is win
 // plumb start win rc -c '@{cd '$data'; exec rc -l}'
 func doWin(loc string) {
-	print("loc: ", loc, "\n")
 	var fullpath string
 	if loc == "" {
 		fullpath = root
@@ -456,7 +455,6 @@ func doWin(loc string) {
 		var err os.Error
 		charaddr := strings.SplitAfter(loc, ",#", 2) 
 		fullpath, err = getFullPath(charaddr[1])
-			print("fullpath0: ", fullpath, "\n")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, err.String())
 			return
@@ -468,10 +466,8 @@ func doWin(loc string) {
 		}
 		if !fi.IsDirectory() {
 			fullpath, _ = path.Split(fullpath)
-			print("fullpath1: ", fullpath, "\n")
 		}
 	}
-	print("fullpath: ", fullpath, "\n")
 	// send the fullpath as a win command to the plumber
 	port, err := plumb.Open("send", plan9.OWRITE)
 	if err != nil {
