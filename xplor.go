@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sort"
 	"flag"
+	"exec"
 	//	"bytes"
 
 	"goplan9.googlecode.com/hg/plan9"
@@ -79,15 +80,26 @@ func main() {
 			doDotDot()
 			continue
 		}
+		if len(word) >= 3 && word[0:3] == "Win" {
+			if PLAN9 != "" {
+				cmd := path.Join(PLAN9, "bin/win")
+				doExec(word[3:len(word)], cmd)
+			}
+			continue
+		}
+// yes, this does not cover all possible cases. I'll do better if anyone needs it.
+		if len(word) >= 5 && word[0:5] == "Xplor" {
+			cmd, err := exec.LookPath("xplor")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, err.String())
+				continue
+			}
+			doExec(word[5:len(word)], cmd)
+			continue
+		}
 		if word[0] == 'X' {
 			onExec(word[1:len(word)])
 			continue
-		}
-		if len(word) >= 3 {
-			if word[0:3] == "Win" {
-				doWin(word[3:len(word)])
-				continue
-			}
 		}
 		onLook(word)
 	}
@@ -134,7 +146,7 @@ func initWindow() os.Error {
 
 	title := "xplor-" + root
 	w.Name(title)
-	tag := "DotDot Win"
+	tag := "DotDot Win Xplor"
 	w.Write("tag", []byte(tag))
 	_, err = printDirContents(root, 0)
 //	initCharToLine(len(newlines))
@@ -440,6 +452,8 @@ func doDotDot() {
 	}
 }
 
+/*
+//TODO: read about defer
 // For this function to work as intended, it needs to be coupled with a
 // plumbing rule, such as:
 // # start rc from xplor in an acme win at the specified path 
@@ -447,7 +461,7 @@ func doDotDot() {
 // src is xplor
 // dst is win
 // plumb start win rc -c '@{cd '$data'; exec rc -l}'
-func doWin(loc string) {
+func doPlumb(loc string, dst string) {
 	var fullpath string
 	if loc == "" {
 		fullpath = root
@@ -474,15 +488,52 @@ func doWin(loc string) {
 		fmt.Fprintf(os.Stderr, err.String())
 		return
 	}
-	defer port.Close()
-	port.Send(&plumb.Msg{
+//	defer port.Close()
+	err = port.Send(&plumb.Msg{
 		Src:  "xplor",
-		Dst:  "win",
+		Dst:  dst,
 		WDir: "/",
 		Kind: "text",
 		Attr: map[string]string{},
 		Data: []byte(fullpath),
 	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, err.String())
+	}
+	port.Close()
+	return
+}
+*/
+
+func doExec(loc string, cmd string) {
+	var fullpath string
+	if loc == "" {
+		fullpath = root
+	} else {
+		var err os.Error
+		charaddr := strings.SplitAfter(loc, ",#", 2) 
+		fullpath, err = getFullPath(charaddr[1])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, err.String())
+			return
+		}
+		fi, err := os.Lstat(fullpath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, err.String())
+			return
+		}
+		if !fi.IsDirectory() {
+			fullpath, _ = path.Split(fullpath)
+		}
+	}
+	var args []string = make([]string, 1)
+	args[0] = cmd
+	fds := []*os.File{os.Stdin, os.Stdout, os.Stderr}
+	_, err := os.ForkExec(args[0], args, os.Environ(), fullpath, fds)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, err.String())
+		return 
+	}
 	return
 }
 
@@ -518,6 +569,12 @@ func events() <-chan string {
 						tmp = string(e.Loc)
 					}
 					c <- ("Win" + tmp)
+				case "Xplor":
+					tmp := ""
+					if e.Flag != 0 {
+						tmp = string(e.Loc)
+					}
+					c <- ("Xplor" + tmp)			
 				default:
 					w.WriteEvent(e)
 				}
