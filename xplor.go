@@ -43,6 +43,7 @@ func usage() {
 	os.Exit(2)
 }
 
+//BUG: /home/mpl/work/iram/casa/active/linux_64b/bin/ ne s'ouvre pas
 //TODO: send error messages to +Errors instead of Stderr? easy sol: start xplor from the acme tag
 //TODO: make a closeAll command ?
 //TODO: keep a list of unfolded  dirs because it will be faster to go through that list and find the right parent for a file when constructing the fullpath, than going recursively up. After some experimenting, it's not that easy to do, so I may as well make a full rework that uses a tree in memory to map the filesystem tree, rather than go all textual.
@@ -105,38 +106,6 @@ func main() {
 	}
 }
 
-/*
-func initCharToLine(lines int) (err os.Error) {
-	b := make([]byte, 64)
-	var (
-		m, n int
-		addr string = "#1+1-"
-	)
-	chartoline.Init() 
-
-	for i:= 0; i < lines; i++ {
-		err = w.Addr("%s", addr)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, err.String())
-			os.Exit(1)
-		}
-		n, err = w.Read("xdata", b)
-		if err != nil && err != os.EOF{
-			fmt.Fprintf(os.Stderr, err.String())
-			os.Exit(1)
-		}
-		m += n
-		print(m, "\n")
-		chartoline[i] = m
-		addr = "#" + fmt.Sprint(m+1) + "+1-"
-	}
-	for i:= 0; i < lines; i++ {
-		print(i, ": ", chartoline[i], "\n")
-	}
-	return err
-}
-*/
-
 func initWindow() os.Error {
 	var err os.Error = nil
 	w, err = acme.New()
@@ -149,7 +118,6 @@ func initWindow() os.Error {
 	tag := "DotDot Win Xplor"
 	w.Write("tag", []byte(tag))
 	_, err = printDirContents(root, 0)
-//	initCharToLine(len(newlines))
 	return err
 }
 
@@ -170,11 +138,13 @@ func printDirContents(dirpath string, depth int) (newlines []int, err os.Error) 
 	for i := 0; i < depth; i++ {
 		indents = indents + INDENT
 	}
+	fullpath := ""
+	var fi *os.FileInfo
 	for _, v := range names {
 		// we want to be fast so we assume (for the printing) that any name containing a dot is not a dir
 		if !strings.Contains(v, ".") {
-			fullpath := path.Join(dirpath, v)
-			fi, err := os.Lstat(fullpath)
+			fullpath = path.Join(dirpath, v)
+			fi, err = os.Stat(fullpath)
 			if err != nil {
 				return newlines, err
 			}
@@ -238,32 +208,6 @@ func isFolded(charaddr string) (bool, os.Error) {
 	return (nextdepth <= depth), err
 }
 
-/*
-func getParent(line string) string {
-	d, leaf := getDepth(line)
-	var parent string 
-	for k, v := range unfolded {
-			fullpath := path.Join(k, leaf)
-			fi, err := os.Lstat(fullpath)
-			if err == nil {
-			fmt.Fprintf(os.Stderr, err.String())
-		return
-	}		
-		dist, _ := strconv.Atoi(v.charaddr)
-		dist-= pos
-		if dist > 0 && dist < min {
-			depth, _ := getDepth(b)
-			if v.depth == depth - 1 {
-				min = dist
-				parent = k
-			}
-		}
-	}
-	print(parent, "\n")
-	return parent
-}
-*/
-
 func getParents(charaddr string, depth int, prevline int) string {
 	var addr string
 	if depth == 0 {
@@ -291,47 +235,6 @@ func getParents(charaddr string, depth int, prevline int) string {
 	return ""
 }
 
-/*
-func addToCharToLine(newlines []int, where int) {
-	for i:=0; i<len(newlines); i++ {
-		print(newlines[i], " ")
-	}
-}
-
-//IDEA: get the offset from the total size before and after the folding
-func removeFromCharToLine([]newLines, offset) {
-
-}
-
-func addToUnfolded(fullpath string, newdir dir) os.Error {
-	_, ok := unfolded[fullpath]
-	if ok {
-		errstring := fullpath + " already in list"
-		return os.NewError(errstring)
-	}
-	unfolded[fullpath] = newdir
-	for k,v := range unfolded {
-		print(k, " ", v.charaddr, " ", v.depth, "\n")
-	}
-	print("\n")
-	return nil
-}
-
-//TODO: remove all the children as well
-func removeFromUnfolded(fullpath string) os.Error {
-	for k, _ := range unfolded {
-		if strings.Contains(k, fullpath) {
-			unfolded[k] = dir{}, false
-		}
-	}
-	for k,v := range unfolded {
-		print(k, " ", v.charaddr, " ", v.depth, "\n")
-	}
-	print("\n")
-	return nil
-}
-*/
-
 //TODO: maybe break this one in a fold and unfold functions
 func onLook(charaddr string) {
 	// reconstruct full path and check if file or dir
@@ -343,8 +246,7 @@ func onLook(charaddr string) {
 	}
 	depth, line := getDepth(b)
 	fullpath := path.Join(root, getParents(charaddr, depth, 1), line)
-//	fullpath := path.Join(root, getParent(charaddr), line)
-	fi, err := os.Lstat(fullpath)
+	fi, err := os.Stat(fullpath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, err.String())
 		return
@@ -383,9 +285,6 @@ func onLook(charaddr string) {
 			return
 		}
 		printDirContents(fullpath, depth+1)
-//		newlines, _ := printDirContents(fullpath, depth+1)
-//		addToCharToLine(newlines, 1)
-//		addToUnfolded(fullpath, dir{charaddr, depth})
 	} else {
 		// fold, ie delete lines below dir until we hit a dir of the same depth
 		addr = "#" + charaddr + "+-"
@@ -414,7 +313,6 @@ func onLook(charaddr string) {
 			return
 		}
 		w.Write("data", []byte(""))
-//		removeFromUnfolded(charaddr)
 	}
 }
 
@@ -428,7 +326,6 @@ func getFullPath(charaddr string) (fullpath string, err os.Error) {
 	}
 	depth, line := getDepth(b)
 	fullpath = path.Join(root, getParents(charaddr, depth, 1), line)
-//	fullpath = path.Join(root, getParent(charaddr), line)
 	return fullpath, err
 }
 
@@ -453,7 +350,6 @@ func doDotDot() {
 }
 
 /*
-//TODO: read about defer
 // For this function to work as intended, it needs to be coupled with a
 // plumbing rule, such as:
 // # start rc from xplor in an acme win at the specified path 
@@ -517,7 +413,7 @@ func doExec(loc string, cmd string) {
 			fmt.Fprintf(os.Stderr, err.String())
 			return
 		}
-		fi, err := os.Lstat(fullpath)
+		fi, err := os.Stat(fullpath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, err.String())
 			return
@@ -529,7 +425,7 @@ func doExec(loc string, cmd string) {
 	var args []string = make([]string, 1)
 	args[0] = cmd
 	fds := []*os.File{os.Stdin, os.Stdout, os.Stderr}
-	_, err := os.ForkExec(args[0], args, os.Environ(), fullpath, fds)
+	_, err := os.StartProcess(args[0], args, os.Environ(), fullpath, fds)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, err.String())
 		return 
