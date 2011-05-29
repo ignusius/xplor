@@ -123,7 +123,7 @@ func initWindow() os.Error {
 
 func printDirContents(dirpath string, depth int) (newlines []int, err os.Error) {
 	var m int
-	currentDir, err := os.Open(dirpath, os.O_RDONLY, 0644)
+	currentDir, err := os.OpenFile(dirpath, os.O_RDONLY, 0644)
 	if err != nil {
 		return newlines, err
 	}
@@ -425,7 +425,7 @@ func doExec(loc string, cmd string) {
 	var args []string = make([]string, 1)
 	args[0] = cmd
 	fds := []*os.File{os.Stdin, os.Stdout, os.Stderr}
-	_, err := os.StartProcess(args[0], args, os.Environ(), fullpath, fds)
+	_, err := os.StartProcess(args[0], args, &os.ProcAttr{Env: os.Environ(), Dir: fullpath, Files: fds})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, err.String())
 		return 
