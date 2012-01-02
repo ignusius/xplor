@@ -4,39 +4,39 @@ package main
 
 import (
 	"os"
-//	"bytes"
-	"path"
-	"fmt"
-	"strings"
-	"sort"
+	//	"bytes"
 	"flag"
-	"exec"
+	"fmt"
+	"os/exec"
+	"path"
+	"sort"
+	"strings"
 	//	"bytes"
 
-	"goplan9.googlecode.com/hg/plan9"
-	"goplan9.googlecode.com/hg/plan9/acme"
 	"bitbucket.org/fhs/goplumb/plumb"
+	"code.google.com/p/goplan9/plan9"
+	"code.google.com/p/goplan9/plan9/acme"
 )
 
 var (
-	root string
-	w *acme.Win
-	PLAN9 = os.Getenv("PLAN9")
-	unfolded map[int] string
-//	chartoline *List 
+	root     string
+	w        *acme.Win
+	PLAN9    = os.Getenv("PLAN9")
+	unfolded map[int]string
+	//	chartoline *List 
 )
 
 const (
-	NBUF = 512
-	INDENT = "	"
+	NBUF    = 512
+	INDENT  = "	"
 	dirflag = "+ "
 )
 
-type dir struct  {
+type dir struct {
 	charaddr string
-	depth int
+	depth    int
 }
-	
+
 func usage() {
 	fmt.Fprintf(os.Stderr, "usage: xplor [path] \n")
 	flag.PrintDefaults()
@@ -71,10 +71,10 @@ func main() {
 
 	err := initWindow()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, err.String())
+		fmt.Fprintf(os.Stderr, err.Error())
 		return
 	}
-//	unfolded = make(map[string] int, 1)
+	//	unfolded = make(map[string] int, 1)
 
 	for word := range events() {
 		if word == "DotDot" {
@@ -88,11 +88,11 @@ func main() {
 			}
 			continue
 		}
-// yes, this does not cover all possible cases. I'll do better if anyone needs it.
+		// yes, this does not cover all possible cases. I'll do better if anyone needs it.
 		if len(word) >= 5 && word[0:5] == "Xplor" {
 			cmd, err := exec.LookPath("xplor")
 			if err != nil {
-				fmt.Fprintf(os.Stderr, err.String())
+				fmt.Fprintf(os.Stderr, err.Error())
 				continue
 			}
 			doExec(word[5:len(word)], cmd)
@@ -106,8 +106,8 @@ func main() {
 	}
 }
 
-func initWindow() os.Error {
-	var err os.Error = nil
+func initWindow() error {
+	var err error = nil
 	w, err = acme.New()
 	if err != nil {
 		return err
@@ -121,7 +121,7 @@ func initWindow() os.Error {
 	return err
 }
 
-func printDirContents(dirpath string, depth int) (newlines []int, err os.Error) {
+func printDirContents(dirpath string, depth int) (newlines []int, err error) {
 	var m int
 	currentDir, err := os.OpenFile(dirpath, os.O_RDONLY, 0644)
 	if err != nil {
@@ -133,13 +133,13 @@ func printDirContents(dirpath string, depth int) (newlines []int, err os.Error) 
 	}
 	currentDir.Close()
 
-	sort.SortStrings(names)
+	sort.Strings(names)
 	indents := ""
 	for i := 0; i < depth; i++ {
 		indents = indents + INDENT
 	}
 	fullpath := ""
-	var fi *os.FileInfo
+	var fi os.FileInfo
 	for _, v := range names {
 		// we want to be fast so we assume (for the printing) that any name containing a dot is not a dir
 		if !strings.Contains(v, ".") {
@@ -148,7 +148,7 @@ func printDirContents(dirpath string, depth int) (newlines []int, err os.Error) 
 			if err != nil {
 				return newlines, err
 			}
-			if fi.IsDirectory() {
+			if fi.IsDir() {
 				m, _ = w.Write("data", []byte(dirflag+indents+v+"\n"))
 				newlines = append(newlines, m)
 			}
@@ -159,18 +159,18 @@ func printDirContents(dirpath string, depth int) (newlines []int, err os.Error) 
 	}
 
 	if depth == 0 {
-	//lame trick for now to dodge the out of range issue, until my address-foo gets better
+		//lame trick for now to dodge the out of range issue, until my address-foo gets better
 		w.Write("body", []byte("\n"))
 		w.Write("body", []byte("\n"))
 		w.Write("body", []byte("\n"))
-	} 
+	}
 
 	return newlines, err
 }
 
-func readLine(addr string) ([]byte, os.Error) {
+func readLine(addr string) ([]byte, error) {
 	var b []byte = make([]byte, NBUF)
-	var err os.Error = nil
+	var err error = nil
 	err = w.Addr("%s", addr)
 	if err != nil {
 		return b, err
@@ -190,8 +190,8 @@ func getDepth(line []byte) (depth int, trimedline string) {
 	return depth, trimedline
 }
 
-func isFolded(charaddr string) (bool, os.Error) {
-	var err os.Error = nil
+func isFolded(charaddr string) (bool, error) {
+	var err error = nil
 	var b []byte
 	addr := "#" + charaddr + "+1-"
 	b, err = readLine(addr)
@@ -221,7 +221,7 @@ func getParents(charaddr string, depth int, prevline int) string {
 	for {
 		b, err := readLine(addr)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, err.String())
+			fmt.Fprintf(os.Stderr, err.Error())
 			os.Exit(1)
 		}
 		newdepth, line := getDepth(b)
@@ -241,22 +241,22 @@ func onLook(charaddr string) {
 	addr := "#" + charaddr + "+1-"
 	b, err := readLine(addr)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, err.String())
+		fmt.Fprintf(os.Stderr, err.Error())
 		return
 	}
 	depth, line := getDepth(b)
 	fullpath := path.Join(root, getParents(charaddr, depth, 1), line)
 	fi, err := os.Stat(fullpath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, err.String())
+		fmt.Fprintf(os.Stderr, err.Error())
 		return
 	}
 
-	if !fi.IsDirectory() {
+	if !fi.IsDir() {
 		// not a dir -> send that file to the plumber
 		port, err := plumb.Open("send", plan9.OWRITE)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, err.String())
+			fmt.Fprintf(os.Stderr, err.Error())
 			return
 		}
 		defer port.Close()
@@ -273,7 +273,7 @@ func onLook(charaddr string) {
 
 	folded, err := isFolded(charaddr)
 	if err != nil {
-		fmt.Fprint(os.Stderr, err.String())
+		fmt.Fprint(os.Stderr, err.Error())
 		return
 	}
 	if folded {
@@ -281,7 +281,7 @@ func onLook(charaddr string) {
 		addr = "#" + charaddr + "+2-1-#0"
 		err = w.Addr("%s", addr)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, err.String()+addr)
+			fmt.Fprintf(os.Stderr, err.Error()+addr)
 			return
 		}
 		printDirContents(fullpath, depth+1)
@@ -293,12 +293,12 @@ func onLook(charaddr string) {
 		for nextdepth > depth {
 			err = w.Addr("%s", addr)
 			if err != nil {
-				fmt.Fprint(os.Stderr, err.String())
+				fmt.Fprint(os.Stderr, err.Error())
 				return
 			}
 			b, err = readLine(addr)
 			if err != nil {
-				fmt.Fprint(os.Stderr, err.String())
+				fmt.Fprint(os.Stderr, err.Error())
 				return
 			}
 			nextdepth, _ = getDepth(b)
@@ -309,7 +309,7 @@ func onLook(charaddr string) {
 		addr = "#" + charaddr + "+-#0,#" + charaddr + "+" + fmt.Sprint(nextline-2)
 		err = w.Addr("%s", addr)
 		if err != nil {
-			fmt.Fprint(os.Stderr, err.String())
+			fmt.Fprint(os.Stderr, err.Error())
 			return
 		}
 		w.Write("data", []byte(""))
@@ -317,7 +317,7 @@ func onLook(charaddr string) {
 }
 
 //TODO: deal with errors
-func getFullPath(charaddr string) (fullpath string, err os.Error) {
+func getFullPath(charaddr string) (fullpath string, err error) {
 	// reconstruct full path and print it to Stdout
 	addr := "#" + charaddr + "+1-"
 	b, err := readLine(addr)
@@ -333,7 +333,7 @@ func doDotDot() {
 	// blank the window
 	err := w.Addr("0,$")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, err.String())
+		fmt.Fprintf(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 	w.Write("data", []byte(""))
@@ -344,7 +344,7 @@ func doDotDot() {
 	w.Name(title)
 	_, err = printDirContents(root, 0)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, err.String())
+		fmt.Fprintf(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 }
@@ -406,19 +406,19 @@ func doExec(loc string, cmd string) {
 	if loc == "" {
 		fullpath = root
 	} else {
-		var err os.Error
-		charaddr := strings.SplitAfter(loc, ",#", 2) 
+		var err error
+		charaddr := strings.SplitAfterN(loc, ",#", 2)
 		fullpath, err = getFullPath(charaddr[1])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, err.String())
+			fmt.Fprintf(os.Stderr, err.Error())
 			return
 		}
 		fi, err := os.Stat(fullpath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, err.String())
+			fmt.Fprintf(os.Stderr, err.Error())
 			return
 		}
-		if !fi.IsDirectory() {
+		if !fi.IsDir() {
 			fullpath, _ = path.Split(fullpath)
 		}
 	}
@@ -427,8 +427,8 @@ func doExec(loc string, cmd string) {
 	fds := []*os.File{os.Stdin, os.Stdout, os.Stderr}
 	_, err := os.StartProcess(args[0], args, &os.ProcAttr{Env: os.Environ(), Dir: fullpath, Files: fds})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, err.String())
-		return 
+		fmt.Fprintf(os.Stderr, err.Error())
+		return
 	}
 	return
 }
@@ -442,7 +442,7 @@ func doExec(loc string, cmd string) {
 func onExec(charaddr string) {
 	fullpath, err := getFullPath(charaddr)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, err.String())
+		fmt.Fprintf(os.Stderr, err.Error())
 		return
 	}
 	fmt.Fprintf(os.Stderr, fullpath+"\n")
@@ -470,7 +470,7 @@ func events() <-chan string {
 					if e.Flag != 0 {
 						tmp = string(e.Loc)
 					}
-					c <- ("Xplor" + tmp)			
+					c <- ("Xplor" + tmp)
 				default:
 					w.WriteEvent(e)
 				}
