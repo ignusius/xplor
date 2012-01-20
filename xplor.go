@@ -23,13 +23,14 @@ var (
 	w        *acme.Win
 	PLAN9    = os.Getenv("PLAN9")
 	unfolded map[int]string
-	//	chartoline *List 
+	showHidden bool
 )
 
 const (
-	NBUF    = 512
-	INDENT  = "	"
-	dirflag = "+ "
+	NBUF      = 512
+	INDENT    = "	"
+	dirflag   = "+ "
+	nodirflag = "  "
 )
 
 type dir struct {
@@ -44,7 +45,6 @@ func usage() {
 }
 
 //BUG: /home/mpl/work/iram/casa/active/linux_64b/bin/ ne s'ouvre pas
-//TODO: send error messages to +Errors instead of Stderr? easy sol: start xplor from the acme tag
 //TODO: make a closeAll command ?
 //TODO: keep a list of unfolded  dirs because it will be faster to go through that list and find the right parent for a file when constructing the fullpath, than going recursively up. After some experimenting, it's not that easy to do, so I may as well make a full rework that uses a tree in memory to map the filesystem tree, rather than go all textual.
 
@@ -76,9 +76,14 @@ func main() {
 	}
 	//	unfolded = make(map[string] int, 1)
 
+	// TODO(mpl): switch insteaf of ifs
 	for word := range events() {
-		if word == "DotDot" {
+		if len(word) >= 6 && word[0:6] == "DotDot" {
 			doDotDot()
+			continue
+		}
+		if len(word) >= 6 && word[0:6] == "Hidden" {
+			toggleHidden()
 			continue
 		}
 		if len(word) >= 3 && word[0:3] == "Win" {
@@ -115,21 +120,21 @@ func initWindow() error {
 
 	title := "xplor-" + root
 	w.Name(title)
-	tag := "DotDot Win Xplor"
+	tag := "DotDot Win Xplor Hidden"
 	w.Write("tag", []byte(tag))
-	_, err = printDirContents(root, 0)
+	err = printDirContents(root, 0)
 	return err
 }
 
-func printDirContents(dirpath string, depth int) (newlines []int, err error) {
-	var m int
+func printDirContents(dirpath string, depth int) (err error) {
 	currentDir, err := os.OpenFile(dirpath, os.O_RDONLY, 0644)
+	line := ""
 	if err != nil {
-		return newlines, err
+		return err
 	}
 	names, err := currentDir.Readdirnames(-1)
 	if err != nil {
-		return newlines, err
+		return err
 	}
 	currentDir.Close()
 
@@ -141,20 +146,18 @@ func printDirContents(dirpath string, depth int) (newlines []int, err error) {
 	fullpath := ""
 	var fi os.FileInfo
 	for _, v := range names {
-		// we want to be fast so we assume (for the printing) that any name containing a dot is not a dir
-		if !strings.Contains(v, ".") {
+		line = nodirflag + indents + v + "\n"
+		isNotHidden := !strings.Contains(v, ".")
+		if isNotHidden || showHidden {
 			fullpath = path.Join(dirpath, v)
 			fi, err = os.Stat(fullpath)
 			if err != nil {
-				return newlines, err
+				return err
 			}
 			if fi.IsDir() {
-				m, _ = w.Write("data", []byte(dirflag+indents+v+"\n"))
-				newlines = append(newlines, m)
+				line = dirflag + indents + v + "\n"
 			}
-		} else {
-			m, _ = w.Write("data", []byte("  "+indents+v+"\n"))
-			newlines = append(newlines, m)
+			w.Write("data", []byte(line))
 		}
 	}
 
@@ -165,7 +168,7 @@ func printDirContents(dirpath string, depth int) (newlines []int, err error) {
 		w.Write("body", []byte("\n"))
 	}
 
-	return newlines, err
+	return err
 }
 
 func readLine(addr string) ([]byte, error) {
@@ -342,7 +345,7 @@ func doDotDot() {
 	root = path.Clean(root + "/../")
 	title := "xplor-" + root
 	w.Name(title)
-	_, err = printDirContents(root, 0)
+	err = printDirContents(root, 0)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, err.Error())
 		os.Exit(1)
@@ -448,6 +451,11 @@ func onExec(charaddr string) {
 	fmt.Fprintf(os.Stderr, fullpath+"\n")
 }
 
+func toggleHidden() {
+	// TODO(mpl): do a full redraw?
+	showHidden = !showHidden
+}
+
 func events() <-chan string {
 	c := make(chan string, 10)
 	go func() {
@@ -457,6 +465,8 @@ func events() <-chan string {
 				switch string(e.Text) {
 				case "Del":
 					w.Ctl("delete")
+				case "Hidden":
+					c <- "Hidden"
 				case "DotDot":
 					c <- "DotDot"
 				case "Win":
