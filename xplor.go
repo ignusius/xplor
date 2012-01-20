@@ -147,7 +147,7 @@ func printDirContents(dirpath string, depth int) (err error) {
 	var fi os.FileInfo
 	for _, v := range names {
 		line = nodirflag + indents + v + "\n"
-		isNotHidden := !strings.Contains(v, ".")
+		isNotHidden := !strings.HasPrefix(v, ".")
 		if isNotHidden || showHidden {
 			fullpath = path.Join(dirpath, v)
 			fi, err = os.Stat(fullpath)
