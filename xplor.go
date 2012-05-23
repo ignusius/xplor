@@ -3,15 +3,13 @@
 package main
 
 import (
-	"os"
-	//	"bytes"
 	"flag"
 	"fmt"
+	"os"
 	"os/exec"
 	"path"
 	"sort"
 	"strings"
-	//	"bytes"
 
 	"bitbucket.org/fhs/goplumb/plumb"
 	"code.google.com/p/goplan9/plan9"
@@ -19,10 +17,9 @@ import (
 )
 
 var (
-	root     string
-	w        *acme.Win
-	PLAN9    = os.Getenv("PLAN9")
-	unfolded map[int]string
+	root       string
+	w          *acme.Win
+	PLAN9      = os.Getenv("PLAN9")
 	showHidden bool
 )
 
@@ -43,10 +40,6 @@ func usage() {
 	flag.PrintDefaults()
 	os.Exit(2)
 }
-
-//BUG: /home/mpl/work/iram/casa/active/linux_64b/bin/ ne s'ouvre pas
-//TODO: make a closeAll command ?
-//TODO: keep a list of unfolded  dirs because it will be faster to go through that list and find the right parent for a file when constructing the fullpath, than going recursively up. After some experimenting, it's not that easy to do, so I may as well make a full rework that uses a tree in memory to map the filesystem tree, rather than go all textual.
 
 func main() {
 	flag.Usage = usage
@@ -74,9 +67,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, err.Error())
 		return
 	}
-	//	unfolded = make(map[string] int, 1)
 
-	// TODO(mpl): switch insteaf of ifs
 	for word := range events() {
 		if len(word) >= 6 && word[0:6] == "DotDot" {
 			doDotDot()
@@ -238,7 +229,7 @@ func getParents(charaddr string, depth int, prevline int) string {
 	return ""
 }
 
-//TODO: maybe break this one in a fold and unfold functions
+// TODO(mpl): maybe break this one in a fold and unfold functions
 func onLook(charaddr string) {
 	// reconstruct full path and check if file or dir
 	addr := "#" + charaddr + "+1-"
@@ -319,7 +310,6 @@ func onLook(charaddr string) {
 	}
 }
 
-//TODO: deal with errors
 func getFullPath(charaddr string) (fullpath string, err error) {
 	// reconstruct full path and print it to Stdout
 	addr := "#" + charaddr + "+1-"
@@ -351,58 +341,6 @@ func doDotDot() {
 		os.Exit(1)
 	}
 }
-
-/*
-// For this function to work as intended, it needs to be coupled with a
-// plumbing rule, such as:
-// # start rc from xplor in an acme win at the specified path 
-// type is text
-// src is xplor
-// dst is win
-// plumb start win rc -c '@{cd '$data'; exec rc -l}'
-func doPlumb(loc string, dst string) {
-	var fullpath string
-	if loc == "" {
-		fullpath = root
-	} else {
-		var err os.Error
-		charaddr := strings.SplitAfter(loc, ",#", 2) 
-		fullpath, err = getFullPath(charaddr[1])
-		if err != nil {
-			fmt.Fprintf(os.Stderr, err.String())
-			return
-		}
-		fi, err := os.Lstat(fullpath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, err.String())
-			return
-		}
-		if !fi.IsDirectory() {
-			fullpath, _ = path.Split(fullpath)
-		}
-	}
-	// send the fullpath as a win command to the plumber
-	port, err := plumb.Open("send", plan9.OWRITE)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, err.String())
-		return
-	}
-//	defer port.Close()
-	err = port.Send(&plumb.Msg{
-		Src:  "xplor",
-		Dst:  dst,
-		WDir: "/",
-		Kind: "text",
-		Attr: map[string]string{},
-		Data: []byte(fullpath),
-	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, err.String())
-	}
-	port.Close()
-	return
-}
-*/
 
 func doExec(loc string, cmd string) {
 	var fullpath string
@@ -452,7 +390,6 @@ func onExec(charaddr string) {
 }
 
 func toggleHidden() {
-	// TODO(mpl): do a full redraw?
 	showHidden = !showHidden
 }
 
