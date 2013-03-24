@@ -143,7 +143,16 @@ func printDirContents(dirpath string, depth int) (err error) {
 			fullpath = path.Join(dirpath, v)
 			fi, err = os.Stat(fullpath)
 			if err != nil {
-				return err
+				_, ok := err.(*os.PathError)
+				if !ok {
+					panic("Not a *os.PathError")
+				}
+				if !os.IsNotExist(err) {
+					return err
+				}
+				// Skip (most likely) broken symlinks
+				fmt.Fprintf(os.Stderr, "%v\n", err.Error())
+				continue
 			}
 			if fi.IsDir() {
 				line = dirflag + indents + v + "\n"
@@ -278,7 +287,10 @@ func onLook(charaddr string) {
 			fmt.Fprintf(os.Stderr, err.Error()+addr)
 			return
 		}
-		printDirContents(fullpath, depth+1)
+		err = printDirContents(fullpath, depth+1)
+		if err != nil {
+			fmt.Fprint(os.Stderr, err.Error())
+		}
 	} else {
 		// fold, ie delete lines below dir until we hit a dir of the same depth
 		addr = "#" + charaddr + "+-"
