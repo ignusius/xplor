@@ -1,4 +1,11 @@
-You know the drill: button 3 (usually right click) to unfold/fold
+xplor
+=====
+
+Tree style (files) explorer for p9p acme.
+  
+If you're not an acme user, here's the easiest way to get acquainted: http://research.swtch.com/acme
+
+Otherwise, you know the drill: button 3 (usually right click) to unfold/fold
 directories (the ones marked with a '+'.  Same click on a regular file
 sends it to the plumber, so default behaviour will be to open it if
 it's text.
