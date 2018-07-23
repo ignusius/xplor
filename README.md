@@ -24,3 +24,5 @@ DotDot redraws xplor with the root set as the parent directory.
 Hidden toggles displaying the hidden files/directories. It does not redraw the tree.
 
 Enjoy!
+
+![picture](xplor.png)
